@@ -114,18 +114,23 @@ PYEOF
 
 ### 0d. Create Send Helper
 
+**IMPORTANT: Gateway mode is the default.** Messages go through the gateway daemon so the user can observe conversations in the Web UI (`http://127.0.0.1:18789/chat?session=...`). Use `--local` only when explicitly testing local-mode behavior.
+
 ```bash
 cat > /tmp/oc-send.sh << 'SHEOF'
 #!/bin/bash
-# Usage: bash /tmp/oc-send.sh <session-id> <message> [agent] [thinking]
+# Usage: bash /tmp/oc-send.sh <session-id> <message> [agent] [thinking] [local]
+# Set 5th arg to "local" to bypass gateway (e.g., for local-mode testing)
 set -euo pipefail
-SID="${1:?Usage: oc-send.sh <session-id> <message> [agent] [thinking]}"
+SID="${1:?Usage: oc-send.sh <session-id> <message> [agent] [thinking] [local]}"
 MSG="${2:?Message required}"
 AGENT="${3:-}"
 THINKING="${4:-}"
+LOCAL="${5:-}"
 OUT="/tmp/oc-out.json"
 
-ARGS=(--local --message "$MSG" --session-id "$SID" --json --timeout 120)
+ARGS=(--message "$MSG" --session-id "$SID" --json --timeout 120)
+[ "$LOCAL" = "local" ] && ARGS+=(--local)
 [ -n "$AGENT" ] && ARGS+=(--agent "$AGENT")
 [ -n "$THINKING" ] && ARGS+=(--thinking "$THINKING")
 
@@ -135,7 +140,9 @@ SHEOF
 chmod +x /tmp/oc-send.sh
 ```
 
-Usage: `bash /tmp/oc-send.sh <session-id> <message> [agent] [thinking]`
+Usage: `bash /tmp/oc-send.sh <session-id> <message> [agent] [thinking] [local]`
+- Default: gateway mode (visible in Web UI)
+- Add `local` as 5th arg to use `--local` mode
 
 **IMPORTANT:** Always set Bash tool timeout to **180000ms** (3 min). Agent responses typically take 8-40s, but tool-using tasks can exceed 120s.
 
@@ -161,21 +168,20 @@ echo "| N | HIGH | tool-use | Description here |" >> /tmp/oc-findings.md
 
 ## Core Interaction
 
-### Send a message (standard)
+### Send a message (standard — gateway mode, visible in Web UI)
 ```bash
 bash /tmp/oc-send.sh "explore-<topic>-<NNN>" "<message>" [agent] [thinking]
 ```
 
-### Send via gateway (tests gateway code path, NOT local)
+### Send via local mode (bypasses gateway, NOT visible in Web UI)
 ```bash
-openclaw agent --message "<MSG>" --session-id "<SID>" --json --timeout 120 > /tmp/oc-out.json 2>&1
-python3 /tmp/oc-parse.py
+bash /tmp/oc-send.sh "explore-<topic>-<NNN>" "<message>" "" "" "local"
 ```
-Note: Without `--local`, the message goes through the gateway daemon. This tests a different code path (WebSocket RPC, session routing, queue management).
+Note: Local mode skips WebSocket RPC, session routing, and queue management. Use only when specifically testing local-mode behavior or comparing local vs gateway.
 
 ### Full JSON dump (for debugging)
 ```bash
-openclaw agent --local --message "<MSG>" --session-id "<SID>" --json --timeout 120 > /tmp/oc-full.json 2>&1
+openclaw agent --message "<MSG>" --session-id "<SID>" --json --timeout 120 > /tmp/oc-full.json 2>&1
 python3 -c "
 import json, re
 with open('/tmp/oc-full.json') as f: raw = re.sub(r'\x1b\[[0-9;]*m', '', f.read())
@@ -311,7 +317,7 @@ Compile findings into a structured report. Save to `~/openclaw-exploration-repor
 4. **Use the Python parser**, not grep/sed, for response text.
 5. **One test per turn.** Don't combine unrelated tests.
 6. **Log findings immediately** to `/tmp/oc-findings.md`.
-7. **Test both `--local` and gateway mode** at least once.
+7. **Default to gateway mode** (no `--local`). This ensures conversations are visible in the Web UI at `http://127.0.0.1:18789/chat`. Only use `--local` when specifically comparing local vs gateway behavior.
 8. **When a tool should have been used but wasn't**, re-prompt explicitly and record BOTH behaviors.
 9. **Verify tool results on disk** (e.g., `cat` a file the agent claims to have written).
 10. **Clean up after:** remove test cron jobs, temp files, and test sessions' side effects.
