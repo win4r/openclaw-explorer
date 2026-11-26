@@ -1,5 +1,3 @@
-# [🚀观看我的哔哩哔哩视频](https://space.bilibili.com/3493277319825652)
-
 # openclaw-explorer
 
 A [Claude Code](https://claude.com/claude-code) skill that deep-tests [OpenClaw](https://openclaw.ai) by conducting automated multi-turn conversations via CLI. It simulates human-like interaction to systematically discover capability boundaries, bugs, and areas for improvement.
